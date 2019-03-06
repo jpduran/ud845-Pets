@@ -46,6 +46,9 @@ import com.example.android.pets.data.PetContract.PetEntry;
 public class EditorActivity extends AppCompatActivity implements
         LoaderManager.LoaderCallbacks<Cursor> {
 
+    // Extra for the task ID to be received in the intent
+    public static final String EXTRA_PET_ID = "extraPetId";
+
     /** Identifier for the pet data loader */
     private static final int EXISTING_PET_LOADER = 0;
 

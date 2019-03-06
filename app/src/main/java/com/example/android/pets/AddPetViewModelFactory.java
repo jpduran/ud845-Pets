@@ -20,6 +20,7 @@ public class AddPetViewModelFactory extends
     @NonNull
     @Override
     public <T extends ViewModel> T create(@NonNull Class<T> modelClass) {
+        //noinspection unchecked
         return (T) new AddPetViewModel(database, petId);
     }
 }

@@ -15,37 +15,39 @@
  */
 package com.example.android.pets;
 
-import android.app.LoaderManager;
-import android.content.ContentUris;
-import android.content.ContentValues;
-import android.content.CursorLoader;
+import android.arch.lifecycle.Observer;
+import android.arch.lifecycle.ViewModelProviders;
+import android.content.Context;
 import android.content.Intent;
-import android.content.Loader;
-import android.database.Cursor;
-import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
-import com.example.android.pets.data.PetContract.PetEntry;
+import com.example.android.pets.data.PetEntry;
+import com.example.android.pets.data.PetsDatabase;
+
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Displays list of pets that were entered and stored in the app.
  */
-public class CatalogActivity extends AppCompatActivity implements
-        LoaderManager.LoaderCallbacks<Cursor> {
-
-    /** Identifier for the pet data loader */
-    private static final int PET_LOADER = 0;
+public class CatalogActivity extends AppCompatActivity {
 
     /** Adapter for the ListView */
-    PetCursorAdapter mCursorAdapter;
+    PetAdapter mAdapter;
+
+    PetsDatabase mDb;
+
+    ListView petListView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,16 +65,16 @@ public class CatalogActivity extends AppCompatActivity implements
         });
 
         // Find the ListView which will be populated with the pet data
-        ListView petListView = (ListView) findViewById(R.id.list);
+        petListView = (ListView) findViewById(R.id.list);
 
         // Find and set empty view on the ListView, so that it only shows when the list has 0 items.
         View emptyView = findViewById(R.id.empty_view);
         petListView.setEmptyView(emptyView);
 
-        // Setup an Adapter to create a list item for each row of pet data in the Cursor.
-        // There is no pet data yet (until the loader finishes) so pass in null for the Cursor.
-        mCursorAdapter = new PetCursorAdapter(this, null);
-        petListView.setAdapter(mCursorAdapter);
+        // Setup an Adapter to create a list item for each row of pet data.
+        // There is no pet data yet, so pass in a empty array list.
+        mAdapter = new PetAdapter(this, new ArrayList<PetEntry>());
+        petListView.setAdapter(mAdapter);
 
         // Setup the item click listener
         petListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -81,50 +83,40 @@ public class CatalogActivity extends AppCompatActivity implements
                 // Create new intent to go to {@link EditorActivity}
                 Intent intent = new Intent(CatalogActivity.this, EditorActivity.class);
 
-                // Form the content URI that represents the specific pet that was clicked on,
-                // by appending the "id" (passed as input to this method) onto the
-                // {@link PetEntry#CONTENT_URI}.
-                // For example, the URI would be "content://com.example.android.pets/pets/2"
-                // if the pet with ID 2 was clicked on.
-                Uri currentPetUri = ContentUris.withAppendedId(PetEntry.CONTENT_URI, id);
-
-                // Set the URI on the data field of the intent
-                intent.setData(currentPetUri);
+                intent.putExtra(EditorActivity.EXTRA_PET_ID, id);
 
                 // Launch the {@link EditorActivity} to display the data for the current pet.
                 startActivity(intent);
             }
         });
 
-        // Kick off the loader
-        getLoaderManager().initLoader(PET_LOADER, null, this);
+        mDb = PetsDatabase.getInstance(getApplicationContext());
+        setupViewModel();
+    }
+
+    private void setupViewModel() {
+        CatalogViewModel viewModel = ViewModelProviders.of(this).get(CatalogViewModel.class);
+        viewModel.getPets().observe(this, new Observer<List<PetEntry>>() {
+            @Override
+            public void onChanged(@Nullable List<PetEntry> petEntries) {
+                mAdapter =  new PetAdapter(getApplicationContext(), petEntries);
+                petListView.setAdapter(mAdapter);
+            }
+        });
     }
 
     /**
      * Helper method to insert hardcoded pet data into the database. For debugging purposes only.
      */
     private void insertPet() {
-        // Create a ContentValues object where column names are the keys,
-        // and Toto's pet attributes are the values.
-        ContentValues values = new ContentValues();
-        values.put(PetEntry.COLUMN_PET_NAME, "Toto");
-        values.put(PetEntry.COLUMN_PET_BREED, "Terrier");
-        values.put(PetEntry.COLUMN_PET_GENDER, PetEntry.GENDER_MALE);
-        values.put(PetEntry.COLUMN_PET_WEIGHT, 7);
-
-        // Insert a new row for Toto into the provider using the ContentResolver.
-        // Use the {@link PetEntry#CONTENT_URI} to indicate that we want to insert
-        // into the pets database table.
-        // Receive the new content URI that will allow us to access Toto's data in the future.
-        Uri newUri = getContentResolver().insert(PetEntry.CONTENT_URI, values);
+        new InsertPetTask(getApplicationContext()).execute();
     }
 
     /**
      * Helper method to delete all pets in the database.
      */
     private void deleteAllPets() {
-        int rowsDeleted = getContentResolver().delete(PetEntry.CONTENT_URI, null, null);
-        Log.v("CatalogActivity", rowsDeleted + " rows deleted from pet database");
+        new DeleteAllTask(getApplicationContext()).execute();
     }
 
     @Override
@@ -151,32 +143,37 @@ public class CatalogActivity extends AppCompatActivity implements
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
-        // Define a projection that specifies the columns from the table we care about.
-        String[] projection = {
-                PetEntry._ID,
-                PetEntry.COLUMN_PET_NAME,
-                PetEntry.COLUMN_PET_BREED };
+    private static class InsertPetTask extends AsyncTask<Void, Void, Void> {
 
-        // This loader will execute the ContentProvider's query method on a background thread
-        return new CursorLoader(this,   // Parent activity context
-                PetEntry.CONTENT_URI,   // Provider content URI to query
-                projection,             // Columns to include in the resulting Cursor
-                null,                   // No selection clause
-                null,                   // No selection arguments
-                null);                  // Default sort order
+        final PetEntry dummyEntry = new PetEntry("Toto", "Terrier", 1, 7);
+
+        private final WeakReference<Context> weakAppContext;
+
+        InsertPetTask(Context AppContext) {
+            this.weakAppContext = new WeakReference<>(AppContext);
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            PetsDatabase database = PetsDatabase.getInstance(weakAppContext.get());
+            database.petDao().insertPet(dummyEntry);
+            return null;
+        }
     }
 
-    @Override
-    public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-        // Update {@link PetCursorAdapter} with this new cursor containing updated pet data
-        mCursorAdapter.swapCursor(data);
-    }
+    private static class DeleteAllTask extends AsyncTask<Void, Void, Void> {
 
-    @Override
-    public void onLoaderReset(Loader<Cursor> loader) {
-        // Callback called when the data needs to be deleted
-        mCursorAdapter.swapCursor(null);
+        private final WeakReference<Context> weakAppContext;
+
+        DeleteAllTask(Context AppContext) {
+            this.weakAppContext = new WeakReference<>(AppContext);
+        }
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            PetsDatabase database = PetsDatabase.getInstance(weakAppContext.get());
+            database.petDao().deleteAllPets();
+            return null;
+        }
     }
 }
