@@ -14,6 +14,16 @@ public class PetEntry {
     private int gender;
     private int weight;
 
+    /**
+     * Possible values for the gender of the pet.
+     */
+    @Ignore
+    public static final int GENDER_UNKNOWN = 0;
+    @Ignore
+    public static final int GENDER_MALE = 1;
+    @Ignore
+    public static final int GENDER_FEMALE = 2;
+
     public PetEntry(int id, String name, String breed, int gender, int weight) {
         this.id = id;
         this.name = name;
