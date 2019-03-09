@@ -82,9 +82,8 @@ public class CatalogActivity extends AppCompatActivity {
             public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
                 // Create new intent to go to {@link EditorActivity}
                 Intent intent = new Intent(CatalogActivity.this, EditorActivity.class);
-
-                intent.putExtra(EditorActivity.EXTRA_PET_ID, id);
-
+                PetEntry petSelected = (PetEntry) adapterView.getItemAtPosition(position);
+                intent.putExtra(EditorActivity.EXTRA_PET_ID, petSelected.getId());
                 // Launch the {@link EditorActivity} to display the data for the current pet.
                 startActivity(intent);
             }
