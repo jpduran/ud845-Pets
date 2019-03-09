@@ -74,7 +74,7 @@ public class EditorActivity extends AppCompatActivity {
     private Spinner mGenderSpinner;
 
     /**
-     * Gender of the pet. The possible valid values are in the PetContract.java file:
+     * Gender of the pet. The possible valid values are in the PetEntry.java file:
      * {@link PetEntry#GENDER_UNKNOWN}, {@link PetEntry#GENDER_MALE}, or
      * {@link PetEntry#GENDER_FEMALE}.
      */
