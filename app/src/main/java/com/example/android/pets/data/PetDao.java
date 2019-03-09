@@ -4,6 +4,7 @@ import android.arch.lifecycle.LiveData;
 import android.arch.persistence.room.Dao;
 import android.arch.persistence.room.Delete;
 import android.arch.persistence.room.Insert;
+import android.arch.persistence.room.OnConflictStrategy;
 import android.arch.persistence.room.Query;
 import android.arch.persistence.room.Update;
 
@@ -13,13 +14,13 @@ import java.util.List;
 public interface PetDao {
 
     @Insert
-    void insertPet(PetEntry petEntry);
+    long insertPet(PetEntry petEntry);
 
-    @Update
-    void updatePet(PetEntry petEntry);
+    @Update(onConflict = OnConflictStrategy.REPLACE)
+    int updatePet(PetEntry petEntry);
 
-    @Delete
-    void deletePet(PetEntry petEntry);
+    @Query("DELETE FROM pet WHERE id = :id")
+    int deletePet(int id);
 
     @Query("SELECT * FROM pet")
     LiveData<List<PetEntry>> loadAllPets();
